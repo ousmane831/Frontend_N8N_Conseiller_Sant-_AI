@@ -39,51 +39,62 @@ function App() {
   }, [messages, isLoading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputValue.trim() || isLoading) return;
+  e.preventDefault();
+  if (!inputValue.trim() || isLoading) return;
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      text: inputValue,
-      isUser: true,
+  const userMessage: Message = {
+    id: Date.now().toString(),
+    text: inputValue,
+    isUser: true,
+    timestamp: new Date(),
+  };
+
+  setMessages((prev) => [...prev, userMessage]);
+  setInputValue('');
+  setIsLoading(true);
+
+  try {
+    // Choix de l'URL selon l'environnement
+    const WEBHOOK_URL =
+      import.meta.env.VITE_USE_LOCAL === 'true'
+        ? 'http://localhost:5678/webhook-test/health-agent/ask'
+        : 'https://back-n8n-conseiller-sant-ai.onrender.com/webhook-test/health-agent/ask';
+
+    const response = await axios.post(
+      WEBHOOK_URL,
+      { question: inputValue },
+      {
+        auth: WEBHOOK_URL.includes('back-n8n-conseiller-sant-ai')
+          ? { username: 'admin', password: '@OusmaneLunix677' }
+          : undefined,
+      }
+    );
+
+    const aiText =
+      response?.data?.['Format Réponse']?.trim() ||
+      '⚠️ Désolé, je n’ai pas pu récupérer la réponse. Réessayez plus tard.';
+
+    const aiMessage: Message = {
+      id: (Date.now() + 1).toString(),
+      text: aiText,
+      isUser: false,
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
-    setInputValue('');
-    setIsLoading(true);
-
-    try {
-      const response = await axios.post(
-        'http://localhost:5678/webhook-test/health-agent/ask',
-        { question: inputValue }
-      );
-
-      const aiText =
-        response?.data?.['Format Réponse']?.trim() ||
-        '⚠️ Désolé, je n’ai pas pu récupérer la réponse. Réessayez plus tard.';
-
-      const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: aiText,
-        isUser: false,
-        timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, aiMessage]);
-    } catch (error) {
-      console.error('Erreur lors de l’appel au webhook:', error);
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: "⚠️ Je n'ai pas pu traiter votre demande. Réessayez plus tard. Pour les cas graves, consultez un médecin.",
-        isUser: false,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    setMessages((prev) => [...prev, aiMessage]);
+  } catch (error) {
+    console.error('Erreur lors de l’appel au webhook:', error);
+    const errorMessage: Message = {
+      id: (Date.now() + 1).toString(),
+      text: "⚠️ Je n'ai pas pu traiter votre demande. Réessayez plus tard. Pour les cas graves, consultez un médecin.",
+      isUser: false,
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, errorMessage]);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const clearHistory = () => {
     setMessages([]);
